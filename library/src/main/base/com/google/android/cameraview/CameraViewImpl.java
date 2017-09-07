@@ -20,10 +20,16 @@ import android.view.View;
 
 import java.util.Set;
 
+/**
+ * 不同方式实现CameraView的抽象基类
+ */
 abstract class CameraViewImpl {
 
-    protected final Callback mCallback;
+    public static final int FOCUS_AREA_SIZE_DEFAULT = 300;
+    public static final int FOCUS_METERING_AREA_WEIGHT_DEFAULT = 1000;
+    public static final int DELAY_MILLIS_BEFORE_RESETTING_FOCUS = 3000;
 
+    protected final Callback mCallback;
     protected final PreviewImpl mPreview;
 
     CameraViewImpl(Callback callback, PreviewImpl preview) {
@@ -35,8 +41,23 @@ abstract class CameraViewImpl {
         return mPreview.getView();
     }
 
+    int getFocusAreaSize() {
+        return FOCUS_AREA_SIZE_DEFAULT;
+    }
+
+    int getFocusMeteringAreaWeight() {
+        return FOCUS_METERING_AREA_WEIGHT_DEFAULT;
+    }
+
+    void detachFocusTapListener() {
+        if (mPreview != null && mPreview.getView() != null) {
+            mPreview.getView().setOnTouchListener(null);
+        }
+    }
+
+
     /**
-     * @return {@code true} if the implementation was able to start the camera session.
+     * 抽象方法
      */
     abstract boolean start();
 
@@ -50,9 +71,6 @@ abstract class CameraViewImpl {
 
     abstract Set<AspectRatio> getSupportedAspectRatios();
 
-    /**
-     * @return {@code true} if the aspect ratio was changed.
-     */
     abstract boolean setAspectRatio(AspectRatio ratio);
 
     abstract AspectRatio getAspectRatio();
@@ -69,6 +87,10 @@ abstract class CameraViewImpl {
 
     abstract void setDisplayOrientation(int displayOrientation);
 
+
+    /**
+     * 摄像头相关回调 (camera session callbacks)
+     */
     interface Callback {
 
         void onCameraOpened();
@@ -76,7 +98,7 @@ abstract class CameraViewImpl {
         void onCameraClosed();
 
         void onPictureTaken(byte[] data);
-
     }
 
 }
+

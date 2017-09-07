@@ -24,9 +24,12 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 
+/**
+ * Android API版本在9到14之间用SurfaceViewPreview
+ */
 class SurfaceViewPreview extends PreviewImpl {
 
-    final SurfaceView mSurfaceView;
+    private final SurfaceView mSurfaceView;
 
     SurfaceViewPreview(Context context, ViewGroup parent) {
         final View view = View.inflate(context, R.layout.surface_view, parent);

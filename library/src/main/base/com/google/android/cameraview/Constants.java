@@ -19,7 +19,8 @@ package com.google.android.cameraview;
 
 interface Constants {
 
-    AspectRatio DEFAULT_ASPECT_RATIO = AspectRatio.of(4, 3);
+    AspectRatio DEFAULT_ASPECT_RATIO = AspectRatio.of(16, 9);//如果是16:9的话显示图片的时候可以填充整个屏幕
+    AspectRatio SECOND_ASPECT_RATIO = AspectRatio.of(4, 3);//如果是4:3的话显示图片的时候会上下留黑很多空间
 
     int FACING_BACK = 0;
     int FACING_FRONT = 1;

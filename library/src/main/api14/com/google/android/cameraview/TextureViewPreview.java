@@ -25,8 +25,13 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 
+/**
+ * Android系统从4.0 (API 14)版本开始引入了TextureView，比SurfaceView更加强大
+ */
 @TargetApi(14)
 class TextureViewPreview extends PreviewImpl {
+
+    private static final String TAG = TextureViewPreview.class.getSimpleName();
 
     private final TextureView mTextureView;
 
@@ -39,6 +44,7 @@ class TextureViewPreview extends PreviewImpl {
 
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                CameraLog.i(TAG, "onSurfaceTextureAvailable, width = %d, height = %d", width, height);//width = 1605, height = 2140
                 setSize(width, height);
                 configureTransform();
                 dispatchSurfaceChanged();
@@ -46,6 +52,7 @@ class TextureViewPreview extends PreviewImpl {
 
             @Override
             public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+                CameraLog.i(TAG, "onSurfaceTextureSizeChanged, width = %d, height = %d", width, height);
                 setSize(width, height);
                 configureTransform();
                 dispatchSurfaceChanged();
@@ -53,6 +60,7 @@ class TextureViewPreview extends PreviewImpl {
 
             @Override
             public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                CameraLog.i(TAG, "onSurfaceTextureDestroyed");
                 setSize(0, 0);
                 return true;
             }
@@ -105,7 +113,7 @@ class TextureViewPreview extends PreviewImpl {
      * Configures the transform matrix for TextureView based on {@link #mDisplayOrientation} and
      * the surface size.
      */
-    void configureTransform() {
+    private void configureTransform() {
         Matrix matrix = new Matrix();
         if (mDisplayOrientation % 180 == 90) {
             final int width = getWidth();

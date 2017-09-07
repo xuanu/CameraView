@@ -22,15 +22,16 @@ import android.support.annotation.NonNull;
 import android.support.v4.util.SparseArrayCompat;
 
 /**
+ * 摄像头的宽高比
+ *
  * Immutable class for describing proportional relationship between width and height.
  */
 public class AspectRatio implements Comparable<AspectRatio>, Parcelable {
 
-    private final static SparseArrayCompat<SparseArrayCompat<AspectRatio>> sCache
-            = new SparseArrayCompat<>(16);
+    private final static SparseArrayCompat<SparseArrayCompat<AspectRatio>> sCache = new SparseArrayCompat<>(16);
 
-    private final int mX;
-    private final int mY;
+    private final int mX;//宽
+    private final int mY;//高
 
     /**
      * Returns an instance of {@link AspectRatio} specified by {@code x} and {@code y} values.
@@ -143,6 +144,8 @@ public class AspectRatio implements Comparable<AspectRatio>, Parcelable {
     }
 
     /**
+     * 4:3的宽高比变成3:4
+     *
      * @return The inverse of this {@link AspectRatio}.
      */
     public AspectRatio inverse() {
@@ -170,8 +173,7 @@ public class AspectRatio implements Comparable<AspectRatio>, Parcelable {
         dest.writeInt(mY);
     }
 
-    public static final Parcelable.Creator<AspectRatio> CREATOR
-            = new Parcelable.Creator<AspectRatio>() {
+    public static final Parcelable.Creator<AspectRatio> CREATOR = new Parcelable.Creator<AspectRatio>() {
 
         @Override
         public AspectRatio createFromParcel(Parcel source) {

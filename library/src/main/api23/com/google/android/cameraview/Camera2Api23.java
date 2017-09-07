@@ -21,7 +21,9 @@ import android.content.Context;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.params.StreamConfigurationMap;
 
-
+/**
+ * 在Android 6.0系统以上使用Camera2Api23作为CameraView的实现，它与Camera2的区别在于获取输出图片大小的方式略有不同
+ */
 @TargetApi(23)
 class Camera2Api23 extends Camera2 {
 

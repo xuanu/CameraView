@@ -19,6 +19,8 @@ package com.google.android.cameraview;
 import android.support.annotation.NonNull;
 
 /**
+ * 图像的宽和高
+ *
  * Immutable class for describing width and height dimensions in pixels.
  */
 public class Size implements Comparable<Size> {
@@ -62,7 +64,7 @@ public class Size implements Comparable<Size> {
 
     @Override
     public String toString() {
-        return mWidth + "x" + mHeight;
+        return mWidth + " x " + mHeight;
     }
 
     @Override

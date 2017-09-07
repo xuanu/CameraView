@@ -23,6 +23,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
+ * 从宽高比到图像size的映射，key是宽高比，value是满足这个宽高比的图像size集合
+ *
  * A collection class that automatically groups {@link Size}s by their {@link AspectRatio}s.
  */
 class SizeMap {
@@ -56,27 +58,39 @@ class SizeMap {
 
     /**
      * Removes the specified aspect ratio and all sizes associated with it.
-     *
-     * @param ratio The aspect ratio to be removed.
      */
     public void remove(AspectRatio ratio) {
         mRatios.remove(ratio);
     }
 
-    Set<AspectRatio> ratios() {
+    public Set<AspectRatio> ratios() {
         return mRatios.keySet();
     }
 
-    SortedSet<Size> sizes(AspectRatio ratio) {
+    public SortedSet<Size> sizes(AspectRatio ratio) {
         return mRatios.get(ratio);
     }
 
-    void clear() {
+    public void clear() {
         mRatios.clear();
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return mRatios.isEmpty();
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("");
+        Set<AspectRatio> ratioSet = ratios();
+        for (AspectRatio ratio: ratioSet) {
+            SortedSet<Size> sizeSet = sizes(ratio);
+            builder.append("[").append(ratio.toString()).append("]:{");
+            for (Size size : sizeSet) {
+                builder.append(size.toString()).append(", ");
+            }
+            builder.append("}; ");
+        }
+        return builder.toString();
+    }
 }

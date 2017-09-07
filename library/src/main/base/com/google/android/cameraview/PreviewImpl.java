@@ -22,37 +22,16 @@ import android.view.View;
 
 
 /**
+ * 不同方式实现Preview的抽象基类
+ *
  * Encapsulates all the operations related to camera preview in a backward-compatible manner.
  */
 abstract class PreviewImpl {
 
-    interface Callback {
-        void onSurfaceChanged();
-    }
-
+    private int mWidth;
+    private int mHeight;
     private Callback mCallback;
 
-    private int mWidth;
-
-    private int mHeight;
-
-    void setCallback(Callback callback) {
-        mCallback = callback;
-    }
-
-    abstract Surface getSurface();
-
-    abstract View getView();
-
-    abstract Class getOutputClass();
-
-    abstract void setDisplayOrientation(int displayOrientation);
-
-    abstract boolean isReady();
-
-    protected void dispatchSurfaceChanged() {
-        mCallback.onSurfaceChanged();
-    }
 
     SurfaceHolder getSurfaceHolder() {
         return null;
@@ -78,4 +57,35 @@ abstract class PreviewImpl {
         return mHeight;
     }
 
+    void setCallback(Callback callback) {
+        mCallback = callback;
+    }
+
+    void dispatchSurfaceChanged() {
+        mCallback.onSurfaceChanged();
+    }
+
+
+    /**
+     * 抽象方法
+     */
+    abstract Surface getSurface();
+
+    abstract View getView();
+
+    abstract Class getOutputClass();
+
+    abstract void setDisplayOrientation(int displayOrientation);
+
+    abstract boolean isReady();
+
+
+    /**
+     * surface变化时的回调
+     */
+    interface Callback {
+        void onSurfaceChanged();
+    }
+
 }
+
