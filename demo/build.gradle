@@ -41,6 +41,8 @@ dependencies {
     compile "com.android.support:design:$supportLibraryVersion"
     compile project(':library')
 
+    compile 'com.facebook.fresco:fresco:1.5.0'
+
     // Tests
     testCompile 'junit:junit:4.12'
     androidTestCompile('com.android.support.test:runner:0.5') {
