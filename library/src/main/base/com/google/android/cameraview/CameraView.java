@@ -64,6 +64,7 @@ public class CameraView extends FrameLayout {
     }
 
     private boolean mAdjustViewBounds;
+    private PreviewImpl mPreviewImpl;
     private CameraViewImpl mCameraViewImpl;
     private final CallbackBridge mCallbackBridge;
     private final DisplayOrientationDetector mDisplayOrientationDetector;
@@ -86,9 +87,9 @@ public class CameraView extends FrameLayout {
         }
 
         // Internal setup
-        final PreviewImpl preview = createPreviewImpl(context);
+        mPreviewImpl = createPreviewImpl(context);
         mCallbackBridge = new CallbackBridge();
-        mCameraViewImpl = createCameraViewImpl(context, preview, mCallbackBridge);
+        mCameraViewImpl = createCameraViewImpl(context, mPreviewImpl, mCallbackBridge);
 
         // Attributes R.style.Widget_CameraView中是参数默认值
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr, R.style.Widget_CameraView);
@@ -124,8 +125,8 @@ public class CameraView extends FrameLayout {
                     mFocusMarkerView.focus(motionEvent.getX(), motionEvent.getY());
                 }
 
-                if (preview != null && preview.getView() != null) {
-                    preview.getView().dispatchTouchEvent(motionEvent);
+                if (mPreviewImpl != null && mPreviewImpl.getView() != null) {
+                    mPreviewImpl.getView().dispatchTouchEvent(motionEvent);
                 }
                 return true;
             }
@@ -144,15 +145,20 @@ public class CameraView extends FrameLayout {
     }
 
     private CameraViewImpl createCameraViewImpl(Context context, PreviewImpl preview, CallbackBridge callbackBridge) {
-        if (Build.VERSION.SDK_INT < 21) {
-            CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera1", Build.VERSION.SDK_INT);
+        if (CameraHelper.getInstance(getContext()).shouldUseCamera1()) {//只使用Camera1的方案
+            CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera1 (for previous experience)", Build.VERSION.SDK_INT);
             return new Camera1(callbackBridge, preview);
-        } else if (Build.VERSION.SDK_INT < 23) {
-            CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2", Build.VERSION.SDK_INT);
-            return new Camera2(callbackBridge, preview, context);
-        } else {
-            CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2Api23", Build.VERSION.SDK_INT);
-            return new Camera2Api23(callbackBridge, preview, context);
+        } else {//根据版本可能使用Camera2的方案
+            if (Build.VERSION.SDK_INT < 21) {
+                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera1", Build.VERSION.SDK_INT);
+                return new Camera1(callbackBridge, preview);
+            } else if (Build.VERSION.SDK_INT < 23) {
+                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2", Build.VERSION.SDK_INT);
+                return new Camera2(callbackBridge, preview, context);
+            } else {
+                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2Api23", Build.VERSION.SDK_INT);
+                return new Camera2Api23(callbackBridge, preview, context);
+            }
         }
     }
 
@@ -184,7 +190,7 @@ public class CameraView extends FrameLayout {
 
         // Handle android:adjustViewBounds
         if (mAdjustViewBounds) {
-            if (!isCameraOpened()) {
+            if (!isCameraOpened()) {//此时相机还没有打开，这里设置一个标志位，等相机打开的时候做一次requestLayout
                 mCallbackBridge.reserveRequestLayoutOnOpen();
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
                 return;
@@ -230,12 +236,11 @@ public class CameraView extends FrameLayout {
         }
         //mCameraViewImpl.getView().measure将触发对应的TextureViewPreview或者SurfaceViewPreview的onSurfaceTextureAvailable方法被调用，进而触发PreviewImpl的mCallback.onSurfaceChanged()被触发
         //对于mCallback.onSurfaceChanged的处理，在Camera1中是重新setUpPreview，并调整相机参数adjustCameraParameters；在Camera2中重新startCaptureSession
+        //start方法中有个逻辑是如果Camera2API不行的话会降级到Camera1，这个时候前面的CameraViewImpl按照原始代码逻辑的话就会重建！那么之前设置的callback就相当于白调用了，部分手机例如魅族MX6上可能引起预览模糊的问题
     }
 
     /**
-     * 打开摄像头
-     *
-     * TODO 这里有个优化点，如果上一次启动Camera2失败但是启动Camera1成功的话，那么以后就直接使用Camera1，不需要再进行切换
+     * 打开摄像头 (这里做了个优化点，如果上一次启动Camera2失败但是启动Camera1成功的话，那么以后就直接使用Camera1，不需要再进行切换)
      */
     public boolean start() {
         CameraLog.i(TAG, "start camera begin");
@@ -243,15 +248,20 @@ public class CameraView extends FrameLayout {
         if (isSuccess) {
             CameraLog.i(TAG, "start camera success");
         } else {
-            CameraLog.i(TAG, "start camera fail, try Camera1");//测试机：小米 5 Android 6.1 和 Vivo X7 走到这里
+            CameraLog.i(TAG, "start camera fail, try Camera1");//测试机：小米 5/4c，Vivo X7，Meizu MX6/Pro6，Galaxy S4，Huawei H60-L11 走到这里
             //store the state, and restore this state after fall back o Camera1
             Parcelable state = onSaveInstanceState();
             //Camera2 uses legacy hardware layer; fall back to Camera1
-            mCameraViewImpl = new Camera1(mCallbackBridge, createPreviewImpl(getContext()));//要保证start方法先于onMeasure方法被调用，这样的话onMeasure方法中调用mCameraViewImpl.getView().measure之后才能正确调用到callback
+            //mCameraViewImpl = new Camera1(mCallbackBridge, createPreviewImpl(getContext()));//要保证start方法先于onMeasure方法被调用，这样的话onMeasure方法中调用mCameraViewImpl.getView().measure之后才能正确调用到callback
+            if (mPreviewImpl == null || mPreviewImpl.getView() == null) {//可以避免重复创建，只是替换CameraView，不用替换PreviewImpl的实现，预览组件的大小也维持之前的设置 (aspect ratio没变)
+                mPreviewImpl = createPreviewImpl(getContext());
+            }
+            mCameraViewImpl = new Camera1(mCallbackBridge, mPreviewImpl);
             onRestoreInstanceState(state);
             isSuccess = mCameraViewImpl.start();
             if (isSuccess) {
-                CameraLog.i(TAG, "start camera with Camera1 success");
+                CameraLog.i(TAG, "start camera with Camera1 success, set to use Camera1 in the future");
+                CameraHelper.getInstance(getContext()).setUseCamera1InFuture();
             } else {
                 CameraLog.i(TAG, "start camera with Camera1 fail");
             }

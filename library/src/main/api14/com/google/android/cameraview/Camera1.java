@@ -23,6 +23,7 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.os.Build;
 import android.os.Handler;
+import android.os.Looper;
 import android.support.v4.util.SparseArrayCompat;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -43,6 +44,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 class Camera1 extends CameraViewImpl {
 
     private static final String TAG = Camera1.class.getSimpleName();
+
+    private static final long MIN_TIME_FOR_AUTOFOCUS = 2000;//拍照时最短的自动对焦时间限制
 
     private static final SparseArrayCompat<String> FLASH_MODES = new SparseArrayCompat<>();
 
@@ -70,6 +73,7 @@ class Camera1 extends CameraViewImpl {
 
     private boolean mShowingPreview;
     private final AtomicBoolean isPictureCaptureInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean isAutoFocusInProgress = new AtomicBoolean(false);
 
     private Handler mHandler = new Handler();
     private Camera.AutoFocusCallback mAutofocusCallback;//这个貌似并没有起到作用，后期考虑删除
@@ -252,19 +256,38 @@ class Camera1 extends CameraViewImpl {
         if (getAutoFocus()) {
             CameraLog.i(TAG, "takePicture => autofocus");
             mCamera.cancelAutoFocus();
+            //mCamera.autoFocus进行自动对焦，对焦好了之后再拍照，魅族MX6手机上对焦比较慢，导致这里可能需要等待好几秒才拍照成功
+            //这里为了更好的体验，限制3秒之内一定要进行拍照，也就是说3秒钟之内对焦还没有成功的话那就直接进行拍照
+            isAutoFocusInProgress.getAndSet(true);
             mCamera.autoFocus(new Camera.AutoFocusCallback() {
                 @Override
                 public void onAutoFocus(boolean success, Camera camera) {
-                    CameraLog.i(TAG, "takePicture, onAutoFocus => takePictureInternal");
-                    takePictureInternal();
+                    if (isAutoFocusInProgress.get()) {
+                        CameraLog.i(TAG, "takePicture, auto focus => takePictureInternal");
+                        isAutoFocusInProgress.set(false);
+                        takePictureInternal();
+                    }
                 }
             });
+
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (isAutoFocusInProgress.get()) {
+                        CameraLog.i(TAG, "takePicture, cancel focus => takePictureInternal");
+                        isAutoFocusInProgress.set(false);
+                        takePictureInternal();
+                    }
+                }
+            }, MIN_TIME_FOR_AUTOFOCUS);
         } else {
             CameraLog.i(TAG, "takePicture => takePictureInternal");
             takePictureInternal();
         }
     }
 
+    //上面的mCamera.autoFocus中的onAutoFocus这个回调会被调用两次，所以takePictureInternal方法中使用isPictureCaptureInProgress来控制takePicture的调用
     private void takePictureInternal() {
         if (!isPictureCaptureInProgress.getAndSet(true)) {
             mCamera.takePicture(null, null, null, new Camera.PictureCallback() {
