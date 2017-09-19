@@ -119,6 +119,8 @@ class Camera1 extends CameraViewImpl {
             mHandler.removeCallbacksAndMessages(null);
         }
         mShowingPreview = false;
+        isPictureCaptureInProgress.set(false);
+        isAutoFocusInProgress.set(false);
         releaseCamera();
     }
 
@@ -259,16 +261,24 @@ class Camera1 extends CameraViewImpl {
             //mCamera.autoFocus进行自动对焦，对焦好了之后再拍照，魅族MX6手机上对焦比较慢，导致这里可能需要等待好几秒才拍照成功
             //这里为了更好的体验，限制3秒之内一定要进行拍照，也就是说3秒钟之内对焦还没有成功的话那就直接进行拍照
             isAutoFocusInProgress.getAndSet(true);
-            mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                @Override
-                public void onAutoFocus(boolean success, Camera camera) {
-                    if (isAutoFocusInProgress.get()) {
-                        CameraLog.i(TAG, "takePicture, auto focus => takePictureInternal");
-                        isAutoFocusInProgress.set(false);
-                        takePictureInternal();
+            try {//从数据上报来看，部分相机自动对焦失败会发生crash，所以这里需要catch住，如果自动对焦失败了，那么就直接进行拍照
+                mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                    @Override
+                    public void onAutoFocus(boolean success, Camera camera) {
+                        if (isAutoFocusInProgress.get()) {
+                            CameraLog.i(TAG, "takePicture, auto focus => takePictureInternal");
+                            isAutoFocusInProgress.set(false);
+                            takePictureInternal();
+                        }
                     }
+                });
+            } catch (Exception error) {
+                if (isAutoFocusInProgress.get()) {
+                    CameraLog.i(TAG, "takePicture, autofocus exception => takePictureInternal", error);
+                    isAutoFocusInProgress.set(false);
+                    takePictureInternal();
                 }
-            });
+            }
 
             Handler handler = new Handler(Looper.getMainLooper());
             handler.postDelayed(new Runnable() {
@@ -289,7 +299,7 @@ class Camera1 extends CameraViewImpl {
 
     //上面的mCamera.autoFocus中的onAutoFocus这个回调会被调用两次，所以takePictureInternal方法中使用isPictureCaptureInProgress来控制takePicture的调用
     private void takePictureInternal() {
-        if (!isPictureCaptureInProgress.getAndSet(true)) {
+        if (isCameraOpened() && !isPictureCaptureInProgress.getAndSet(true)) {
             mCamera.takePicture(null, null, null, new Camera.PictureCallback() {
                 @Override
                 public void onPictureTaken(byte[] data, Camera camera) {
@@ -651,12 +661,18 @@ class Camera1 extends CameraViewImpl {
                                 parameters.setMeteringAreas(meteringAreas);
                             }
                             mCamera.setParameters(parameters);
-                            mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                                @Override
-                                public void onAutoFocus(boolean success, Camera camera) {
-                                    resetFocus(success, camera);
-                                }
-                            });
+
+                            try {
+                                mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                                    @Override
+                                    public void onAutoFocus(boolean success, Camera camera) {
+                                        resetFocus(success, camera);
+                                    }
+                                });
+                            } catch (Exception error) {
+                                //ignore this exception
+                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 1", error);
+                            }
                         } else if (parameters.getMaxNumMeteringAreas() > 0) {
                             if(!parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
                                 return false; //cannot autoFocus
@@ -664,23 +680,33 @@ class Camera1 extends CameraViewImpl {
                             parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
                             parameters.setFocusAreas(meteringAreas);
                             parameters.setMeteringAreas(meteringAreas);
-
                             mCamera.setParameters(parameters);
-                            mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                                @Override
-                                public void onAutoFocus(boolean success, Camera camera) {
-                                    resetFocus(success, camera);
-                                }
-                            });
-                        } else {
-                            mCamera.autoFocus(new Camera.AutoFocusCallback() {
-                                @Override
-                                public void onAutoFocus(boolean success, Camera camera) {
-                                    if (mAutofocusCallback != null) {
-                                        mAutofocusCallback.onAutoFocus(success, camera);
+
+                            try {
+                                mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                                    @Override
+                                    public void onAutoFocus(boolean success, Camera camera) {
+                                        resetFocus(success, camera);
                                     }
-                                }
-                            });
+                                });
+                            } catch (Exception error) {
+                                //ignore this exception
+                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 2", error);
+                            }
+                        } else {
+                            try {
+                                mCamera.autoFocus(new Camera.AutoFocusCallback() {
+                                    @Override
+                                    public void onAutoFocus(boolean success, Camera camera) {
+                                        if (mAutofocusCallback != null) {
+                                            mAutofocusCallback.onAutoFocus(success, camera);
+                                        }
+                                    }
+                                });
+                            } catch (Exception error) {
+                                //ignore this exception
+                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 3", error);
+                            }
                         }
                     }
                 }
@@ -697,12 +723,20 @@ class Camera1 extends CameraViewImpl {
             public void run() {
                 if (camera != null) {
                     camera.cancelAutoFocus();
-                    Camera.Parameters params = camera.getParameters();
-                    if (!params.getFocusMode().equalsIgnoreCase(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
-                        params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-                        params.setFocusAreas(null);
-                        params.setMeteringAreas(null);
-                        camera.setParameters(params);
+                    try {
+                        Camera.Parameters params = camera.getParameters();//数据上报中红米Note3在这里可能crash
+                        if (params != null && !params.getFocusMode().equalsIgnoreCase(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+                            //之前这里并没有考虑相机是否支持FOCUS_MODE_CONTINUOUS_PICTURE，可能是因为这个原因导致部分三星机型上调用后面的setParameters失败
+                            if(params.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+                                params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+                                params.setFocusAreas(null);
+                                params.setMeteringAreas(null);
+                                camera.setParameters(params);//数据上报中三星低端机型在这里可能crash
+                            }
+                        }
+                    } catch (Exception error) {
+                        //ignore this exception
+                        CameraLog.e(TAG, "resetFocus, camera getParameters or setParameters fail", error);
                     }
 
                     if (mAutofocusCallback != null) {
