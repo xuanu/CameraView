@@ -16,21 +16,32 @@
 
 package com.google.android.cameraview;
 
+import static android.provider.MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO;
+import static android.provider.MediaStore.MediaColumns.SIZE;
+
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.support.v4.util.SparseArrayCompat;
+import android.text.TextUtils;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.View;
+import android.widget.TextView;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -77,6 +88,10 @@ class Camera1 extends CameraViewImpl {
 
     private Handler mHandler = new Handler();
     private Camera.AutoFocusCallback mAutofocusCallback;//这个貌似并没有起到作用，后期考虑删除
+
+    private MediaRecorder mRecorder;
+    /** 是否正在录制 **/
+    private boolean isRecrding = false;
 
     public Camera1(Callback callback, PreviewImpl preview) {
         super(callback, preview);
@@ -129,8 +144,11 @@ class Camera1 extends CameraViewImpl {
     private void setUpPreview() {
         try {
             if (mPreview.getOutputClass() == SurfaceHolder.class) {
-                final boolean needsToStopPreview = mShowingPreview && Build.VERSION.SDK_INT < 14;//辅导中needsToStopPreview一定是false
-                CameraLog.i(TAG, "setUpPreview, outputClass is SurfaceHolder, needsToStopPreview = %s", needsToStopPreview);
+                final boolean needsToStopPreview = mShowingPreview
+                        && Build.VERSION.SDK_INT < 14;//辅导中needsToStopPreview一定是false
+                CameraLog.i(TAG,
+                        "setUpPreview, outputClass is SurfaceHolder, needsToStopPreview = %s",
+                        needsToStopPreview);
                 if (needsToStopPreview) {
                     mCamera.stopPreview();
                 }
@@ -140,7 +158,9 @@ class Camera1 extends CameraViewImpl {
                 }
             } else {//Android 4.0(API 14)以上才有了TextureView，辅导一定是走这里
                 CameraLog.i(TAG, "setUpPreview, outputClass is SurfaceTexture");
-                mCamera.setPreviewTexture((SurfaceTexture) mPreview.getSurfaceTexture());//两个分支最主要的区别在于这里，给Camera设置Preview对应的Surface
+                mCamera.setPreviewTexture(
+                        (SurfaceTexture) mPreview.getSurfaceTexture());
+                //两个分支最主要的区别在于这里，给Camera设置Preview对应的Surface
             }
         } catch (IOException e) {
             CameraLog.i(TAG, "setUpPreview, fail IOException message: ", e.getMessage());
@@ -172,7 +192,8 @@ class Camera1 extends CameraViewImpl {
 
     @Override
     Set<AspectRatio> getSupportedAspectRatios() {
-        //mPreviewSizes和mPictureSizes都有各自支持的比例，这里是求出mPreviewSizes中那些在mPictureSizes中也存在的比例列表 => javayhu 后来我在adjustCameraParameters中也做了这个操作
+        //mPreviewSizes和mPictureSizes都有各自支持的比例，这里是求出mPreviewSizes中那些在mPictureSizes中也存在的比例列表 =>
+        // javayhu 后来我在adjustCameraParameters中也做了这个操作
         SizeMap idealAspectRatios = mPreviewSizes;
         List<AspectRatio> ratiosToDelete = new ArrayList<>();
         for (AspectRatio aspectRatio : idealAspectRatios.ratios()) {
@@ -181,7 +202,7 @@ class Camera1 extends CameraViewImpl {
                 ratiosToDelete.add(aspectRatio);
             }
         }
-        for (AspectRatio ratio: ratiosToDelete) {
+        for (AspectRatio ratio : ratiosToDelete) {
             idealAspectRatios.remove(ratio);
         }
         return idealAspectRatios.ratios();
@@ -190,7 +211,8 @@ class Camera1 extends CameraViewImpl {
     @Override
     boolean setAspectRatio(AspectRatio ratio) {
         if (mAspectRatio == null || !isCameraOpened()) {
-            CameraLog.i(TAG, "setAspectRatio, mAspectRatio is null? %s, camera open? %s", mAspectRatio == null, isCameraOpened());
+            CameraLog.i(TAG, "setAspectRatio, mAspectRatio is null? %s, camera open? %s",
+                    mAspectRatio == null, isCameraOpened());
             mAspectRatio = ratio;// Handle this later when camera is opened
             return true;
         } else if (!mAspectRatio.equals(ratio)) {
@@ -250,7 +272,8 @@ class Camera1 extends CameraViewImpl {
     @Override
     void takePicture() {
         if (!isCameraOpened()) {
-            //throw new IllegalStateException("Camera is not ready. Call start() before takePicture().");
+            //throw new IllegalStateException("Camera is not ready. Call start() before
+            // takePicture().");
             CameraLog.i(TAG, "Camera is not ready, call start() before takePicture()");
             return;
         }
@@ -274,7 +297,8 @@ class Camera1 extends CameraViewImpl {
                 });
             } catch (Exception error) {
                 if (isAutoFocusInProgress.get()) {
-                    CameraLog.i(TAG, "takePicture, autofocus exception => takePictureInternal", error);
+                    CameraLog.i(TAG, "takePicture, autofocus exception => takePictureInternal",
+                            error);
                     isAutoFocusInProgress.set(false);
                     takePictureInternal();
                 }
@@ -297,7 +321,8 @@ class Camera1 extends CameraViewImpl {
         }
     }
 
-    //上面的mCamera.autoFocus中的onAutoFocus这个回调会被调用两次，所以takePictureInternal方法中使用isPictureCaptureInProgress来控制takePicture的调用
+    //上面的mCamera.autoFocus中的onAutoFocus这个回调会被调用两次，所以takePictureInternal
+    // 方法中使用isPictureCaptureInProgress来控制takePicture的调用
     private void takePictureInternal() {
         if (isCameraOpened() && !isPictureCaptureInProgress.getAndSet(true)) {
             mCamera.takePicture(null, null, null, new Camera.PictureCallback() {
@@ -318,7 +343,8 @@ class Camera1 extends CameraViewImpl {
     @Override
     void setDisplayOrientation(int displayOrientation) {
         if (mDisplayOrientation == displayOrientation) {
-            CameraLog.i(TAG, "Camera1 setDisplayOrientation, displayOrientation = %d, not changed", displayOrientation);
+            CameraLog.i(TAG, "Camera1 setDisplayOrientation, displayOrientation = %d, not changed",
+                    displayOrientation);
             return;
         }
         mDisplayOrientation = displayOrientation;
@@ -335,7 +361,89 @@ class Camera1 extends CameraViewImpl {
             if (needsToStopPreview) {
                 mCamera.startPreview();
             }
-            CameraLog.i(TAG, "Camera1 setDisplayOrientation, new orientation = %d, camera rotation = %d, camera orientation = %d", displayOrientation, rotation, orientation);
+            CameraLog.i(TAG,
+                    "Camera1 setDisplayOrientation, new orientation = %d, camera rotation = %d, "
+                            + "camera orientation = %d",
+                    displayOrientation, rotation, orientation);
+        }
+    }
+
+
+    @Override
+    boolean startRecord(String file) {
+        boolean ready = prepareRecord(file);
+        if (ready) {
+            mRecorder.start();
+            isRecrding = true;
+        }
+        return ready;
+    }
+
+    private boolean prepareRecord(String file) {
+        if (!isCameraOpened()) start();
+        if (isRecrding) return false;
+        if (TextUtils.isEmpty(file)) {
+            file = new File(Environment.getExternalStorageDirectory(),
+                    "录像" + System.currentTimeMillis() + ".mp4").getAbsolutePath();
+        }
+        mCamera.unlock();
+        if (mRecorder == null) mRecorder = new MediaRecorder();
+        mRecorder.setCamera(mCamera);
+        mRecorder.setOrientationHint(90);
+        mRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+        mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+        mRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
+        mRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
+        mRecorder.setVideoEncodingBitRate(2*1024 * 1024);
+//        mRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_480P));
+
+        //选取一个合适的
+        List<Camera.Size> sizes = mCameraParameters.getSupportedVideoSizes();
+
+        Camera.Size previewSize = null;
+        int defalutHeight = 600;
+        int space = 10000;
+        for (int i = 0; i < sizes.size(); i++) {
+            Camera.Size temp = sizes.get(i);
+            int tempSpace = Math.abs(temp.height - defalutHeight);
+            if (tempSpace < space) {
+                space = tempSpace;
+                previewSize = temp;
+            }
+        }
+        if (previewSize != null) {
+            mRecorder.setVideoSize(previewSize.width, previewSize.height);
+            mRecorder.setVideoFrameRate(24); // 设置帧率
+        }  // 设置视频大小
+//        mRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
+        // Step 4: Set output file
+        mRecorder.setOutputFile(file);
+        // Step 5: Set the preview output
+        mRecorder.setPreviewDisplay(mPreview.getSurface());
+        // Step 6: Prepare configured MediaRecorder
+        try {
+            mRecorder.prepare();
+        } catch (IllegalStateException e) {
+            Log.d(TAG, "IllegalStateException preparing MediaRecorder: " + e.getMessage());
+            stopRecord();
+            return false;
+        } catch (IOException e) {
+            Log.d(TAG, "IOException preparing MediaRecorder: " + e.getMessage());
+            stopRecord();
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    void stopRecord() {
+        if (mRecorder != null) {
+            mRecorder.reset();   // clear recorder configuration
+            mRecorder.release(); // release the recorder object
+            mRecorder = null;
+            isRecrding = false;
+            mCamera.lock();           // lock camera for later use
         }
     }
 
@@ -376,7 +484,8 @@ class Camera1 extends CameraViewImpl {
 
         //调整Preview sizes
         adjustPreviewSizes();
-        CameraLog.i(TAG, "openCamera, adjustPreviewSizes: %s", mPreviewSizes);//应该不至于有个手机没有一个可以统一的AspectRatio
+        CameraLog.i(TAG, "openCamera, adjustPreviewSizes: %s",
+                mPreviewSizes);//应该不至于有个手机没有一个可以统一的AspectRatio
 
         // AspectRatio
         if (mAspectRatio == null) {
@@ -414,7 +523,8 @@ class Camera1 extends CameraViewImpl {
         Size previewSize = choosePreviewSize(sizes);
 
         // Always re-apply camera parameters
-        //final Size pictureSize = mPictureSizes.sizes(mAspectRatio).last();// Largest picture size in this ratio
+        //final Size pictureSize = mPictureSizes.sizes(mAspectRatio).last();// Largest picture
+        // size in this ratio
         Size pictureSize = choosePictureSize();
 
         if (mShowingPreview) {
@@ -428,7 +538,10 @@ class Camera1 extends CameraViewImpl {
         setFlashInternal(mFlash);
         mCamera.setParameters(mCameraParameters);
 
-        CameraLog.i(TAG, "adjustCameraParameters, PreviewSize = %s, PictureSize = %s, AspectRatio = %s, AutoFocus = %s, Flash = %s", previewSize, pictureSize, mAspectRatio, mAutoFocus, mFlash);
+        CameraLog.i(TAG,
+                "adjustCameraParameters, PreviewSize = %s, PictureSize = %s, AspectRatio = %s, "
+                        + "AutoFocus = %s, Flash = %s",
+                previewSize, pictureSize, mAspectRatio, mAutoFocus, mFlash);
 
         if (mShowingPreview) {
             mCamera.startPreview();
@@ -438,7 +551,8 @@ class Camera1 extends CameraViewImpl {
     @SuppressWarnings("SuspiciousNameCombination")
     private Size choosePreviewSize(SortedSet<Size> sizes) {
         if (!mPreview.isReady()) { // Not yet laid out
-            CameraLog.i(TAG, "choosePreviewSize, preview is not ready, return size: %s", sizes.first());
+            CameraLog.i(TAG, "choosePreviewSize, preview is not ready, return size: %s",
+                    sizes.first());
             return sizes.first(); // Return the smallest size
         }
         int desiredWidth;
@@ -482,7 +596,8 @@ class Camera1 extends CameraViewImpl {
     private Size choosePictureSize() {
         if (mAspectRatio.equals(Constants.DEFAULT_ASPECT_RATIO)) {
             SortedSet<Size> sizes = mPictureSizes.sizes(mAspectRatio);
-            Size[] preferedSizes = new Size[] {new Size(1920, 1080), new Size(1280, 720)};//几个比较合适的输出大小
+            Size[] preferedSizes = new Size[]{new Size(1920, 1080), new Size(1280,
+                    720)};//几个比较合适的输出大小
             for (Size size : preferedSizes) {
                 if (sizes.contains(size)) {
                     return size;
@@ -492,7 +607,8 @@ class Camera1 extends CameraViewImpl {
             return getMiddleSize(sizes);
         } else if (mAspectRatio.equals(Constants.SECOND_ASPECT_RATIO)) {
             SortedSet<Size> sizes = mPictureSizes.sizes(mAspectRatio);
-            Size[] preferedSizes = new Size[] {new Size(1440, 1080), new Size(1280, 960), new Size(1024, 768), new Size(800, 600)};//几个比较合适的输出大小
+            Size[] preferedSizes = new Size[]{new Size(1440, 1080), new Size(1280, 960), new Size(
+                    1024, 768), new Size(800, 600)};//几个比较合适的输出大小
             for (Size size : preferedSizes) {
                 if (sizes.contains(size)) {
                     return size;
@@ -529,7 +645,8 @@ class Camera1 extends CameraViewImpl {
 
     /**
      * Calculate display orientation
-     * https://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
+     * https://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation
+     * (int)
      *
      * This calculation is used for orienting the preview
      *
@@ -570,7 +687,8 @@ class Camera1 extends CameraViewImpl {
      * 根据屏幕旋转的度数来判断是否是横屏
      */
     private boolean isLandscape(int orientationDegrees) {
-        return (orientationDegrees == Constants.LANDSCAPE_90 || orientationDegrees == Constants.LANDSCAPE_270);
+        return (orientationDegrees == Constants.LANDSCAPE_90
+                || orientationDegrees == Constants.LANDSCAPE_270);
     }
 
     /**
@@ -583,19 +701,23 @@ class Camera1 extends CameraViewImpl {
             if (autoFocus && modes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
                 attachFocusTapListener();
                 mCameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
-                CameraLog.i(TAG, "setAutoFocusInternal, FOCUS_MODE_CONTINUOUS_PICTURE, autoFocus = true");
+                CameraLog.i(TAG,
+                        "setAutoFocusInternal, FOCUS_MODE_CONTINUOUS_PICTURE, autoFocus = true");
             } else if (modes.contains(Camera.Parameters.FOCUS_MODE_FIXED)) {
                 detachFocusTapListener();
                 mCameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_FIXED);
-                CameraLog.i(TAG, "setAutoFocusInternal, FOCUS_MODE_FIXED, autoFocus = %s", autoFocus);
+                CameraLog.i(TAG, "setAutoFocusInternal, FOCUS_MODE_FIXED, autoFocus = %s",
+                        autoFocus);
             } else if (modes.contains(Camera.Parameters.FOCUS_MODE_INFINITY)) {
                 detachFocusTapListener();
                 mCameraParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_INFINITY);
-                CameraLog.i(TAG, "setAutoFocusInternal, FOCUS_MODE_INFINITY, autoFocus = %s", autoFocus);
+                CameraLog.i(TAG, "setAutoFocusInternal, FOCUS_MODE_INFINITY, autoFocus = %s",
+                        autoFocus);
             } else {
                 detachFocusTapListener();
                 mCameraParameters.setFocusMode(modes.get(0));//getSupportedFocusModes方法返回的列表至少有一个元素
-                CameraLog.i(TAG, "setAutoFocusInternal, mode = %s, autoFocus = %s", modes.get(0), autoFocus);
+                CameraLog.i(TAG, "setAutoFocusInternal, mode = %s, autoFocus = %s", modes.get(0),
+                        autoFocus);
             }
             return true;
         } else {
@@ -609,7 +731,9 @@ class Camera1 extends CameraViewImpl {
      */
     private boolean setFlashInternal(int flash) {
         if (isCameraOpened()) {
-            List<String> modes = mCameraParameters.getSupportedFlashModes();//如果不支持设置闪关灯的话，getSupportedFlashModes方法会返回null
+            List<String> modes =
+                    mCameraParameters.getSupportedFlashModes();
+            //如果不支持设置闪关灯的话，getSupportedFlashModes方法会返回null
             String mode = FLASH_MODES.get(flash);
             if (modes != null && modes.contains(mode)) {
                 mCameraParameters.setFlashMode(mode);
@@ -649,10 +773,13 @@ class Camera1 extends CameraViewImpl {
                         if (parameters.getMaxNumFocusAreas() != 0 && focusMode != null &&
                                 (focusMode.equals(Camera.Parameters.FOCUS_MODE_AUTO) ||
                                         focusMode.equals(Camera.Parameters.FOCUS_MODE_MACRO) ||
-                                        focusMode.equals(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE) ||
-                                        focusMode.equals(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO))
+                                        focusMode.equals(
+                                                Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE) ||
+                                        focusMode.equals(
+                                                Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO))
                                 ) {
-                            if(!parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
+                            if (!parameters.getSupportedFocusModes().contains(
+                                    Camera.Parameters.FOCUS_MODE_AUTO)) {
                                 return false; //cannot autoFocus
                             }
                             parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
@@ -671,10 +798,12 @@ class Camera1 extends CameraViewImpl {
                                 });
                             } catch (Exception error) {
                                 //ignore this exception
-                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 1", error);
+                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 1",
+                                        error);
                             }
                         } else if (parameters.getMaxNumMeteringAreas() > 0) {
-                            if(!parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_AUTO)) {
+                            if (!parameters.getSupportedFocusModes().contains(
+                                    Camera.Parameters.FOCUS_MODE_AUTO)) {
                                 return false; //cannot autoFocus
                             }
                             parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
@@ -691,7 +820,8 @@ class Camera1 extends CameraViewImpl {
                                 });
                             } catch (Exception error) {
                                 //ignore this exception
-                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 2", error);
+                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 2",
+                                        error);
                             }
                         } else {
                             try {
@@ -705,7 +835,8 @@ class Camera1 extends CameraViewImpl {
                                 });
                             } catch (Exception error) {
                                 //ignore this exception
-                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 3", error);
+                                CameraLog.e(TAG, "attachFocusTapListener, autofocus fail case 3",
+                                        error);
                             }
                         }
                     }
@@ -725,10 +856,14 @@ class Camera1 extends CameraViewImpl {
                     camera.cancelAutoFocus();
                     try {
                         Camera.Parameters params = camera.getParameters();//数据上报中红米Note3在这里可能crash
-                        if (params != null && !params.getFocusMode().equalsIgnoreCase(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
-                            //之前这里并没有考虑相机是否支持FOCUS_MODE_CONTINUOUS_PICTURE，可能是因为这个原因导致部分三星机型上调用后面的setParameters失败
-                            if(params.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
-                                params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+                        if (params != null && !params.getFocusMode().equalsIgnoreCase(
+                                Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+                            //之前这里并没有考虑相机是否支持FOCUS_MODE_CONTINUOUS_PICTURE
+                            // ，可能是因为这个原因导致部分三星机型上调用后面的setParameters失败
+                            if (params.getSupportedFocusModes().contains(
+                                    Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
+                                params.setFocusMode(
+                                        Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
                                 params.setFocusAreas(null);
                                 params.setMeteringAreas(null);
                                 camera.setParameters(params);//数据上报中三星低端机型在这里可能crash
@@ -736,7 +871,8 @@ class Camera1 extends CameraViewImpl {
                         }
                     } catch (Exception error) {
                         //ignore this exception
-                        CameraLog.e(TAG, "resetFocus, camera getParameters or setParameters fail", error);
+                        CameraLog.e(TAG, "resetFocus, camera getParameters or setParameters fail",
+                                error);
                     }
 
                     if (mAutofocusCallback != null) {

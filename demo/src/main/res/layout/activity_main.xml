@@ -48,4 +48,13 @@
         app:srcCompat="@drawable/ic_camera"
         app:useCompatPadding="true"/>
 
+    <CheckBox
+        android:id="@+id/take_record"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="@color/accent"
+        android:button="@drawable/ic_camera"
+        android:padding="20dp"
+        android:text="录制视频"/>
 </RelativeLayout>

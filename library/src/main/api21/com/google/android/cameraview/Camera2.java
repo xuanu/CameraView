@@ -259,6 +259,16 @@ class Camera2 extends CameraViewImpl {
         mPreview.setDisplayOrientation(mDisplayOrientation);
     }
 
+    @Override
+    boolean startRecord(String file) {
+        return false;
+    }
+
+    @Override
+    void stopRecord() {
+
+    }
+
     /**
      * 选择摄像头设备 (可能修改mCameraId, mCameraCharacteristics, mFacing的值)
      *

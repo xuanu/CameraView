@@ -1,4 +1,8 @@
 # CameraView
+### 再次更改
+> 想要加入自己的功能，录制视频。
+> Camera1的录制功能参见：[Camera API](https://developer.android.com/guide/topics/media/camera.html#capture-video);
+> 默认的视频大小比较小，setVideoSize();设置，最好选取和当前设备成比例的值。
 
 ### 项目说明
 

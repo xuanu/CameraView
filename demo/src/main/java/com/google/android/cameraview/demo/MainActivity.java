@@ -35,6 +35,8 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.Toast;
 
 import com.google.android.cameraview.AspectRatio;
@@ -51,7 +53,8 @@ import java.util.Set;
  * This demo app saves the taken picture to a constant file.
  * $ adb pull /sdcard/Android/data/com.google.android.cameraview.demo/files/Pictures/picture.jpg
  */
-public class MainActivity extends AppCompatActivity implements ActivityCompat.OnRequestPermissionsResultCallback, AspectRatioFragment.Listener {
+public class MainActivity extends AppCompatActivity implements
+        ActivityCompat.OnRequestPermissionsResultCallback, AspectRatioFragment.Listener {
 
     private static final String TAG = "MainActivity";
 
@@ -115,23 +118,41 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         if (actionBar != null) {
             actionBar.setDisplayShowTitleEnabled(false);
         }
+        ((CheckBox) findViewById(R.id.take_record)).setOnCheckedChangeListener(
+                new CompoundButton.OnCheckedChangeListener() {
+                    @Override
+                    public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                        if (b) {
+                            compoundButton.setText("录制中，再次停止");
+                            mCameraView.startRecord(new File(getExternalCacheDir(),
+                                    "录制" + System.currentTimeMillis() + ".mp4").getAbsolutePath());
+                        } else {
+                            compoundButton.setText("未录制，点击录制");
+                            mCameraView.stopRecord();
+                        }
+                    }
+                });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
             try {
                 mCameraView.start();
             } catch (Exception e) {
                 Log.e(TAG, "start camera fail", e);
             }
-        } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)) {
+        } else if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                Manifest.permission.CAMERA)) {
             ConfirmationDialogFragment.newInstance(R.string.camera_permission_confirmation,
-                            new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION, R.string.camera_permission_not_granted)
+                    new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION,
+                    R.string.camera_permission_not_granted)
                     .show(getSupportFragmentManager(), FRAGMENT_PERMISSION);
         } else {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
+                    REQUEST_CAMERA_PERMISSION);
         }
     }
 
@@ -168,7 +189,8 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                     throw new RuntimeException("Error on requesting camera permission.");
                 }
                 if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, R.string.camera_permission_not_granted, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.camera_permission_not_granted,
+                            Toast.LENGTH_SHORT).show();
                 }
                 // No need to start camera here; it is handled by onResume
                 break;
@@ -186,7 +208,8 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         switch (item.getItemId()) {
             case R.id.aspect_ratio:
                 FragmentManager fragmentManager = getSupportFragmentManager();
-                if (mCameraView != null && fragmentManager.findFragmentByTag(FRAGMENT_PERMISSION) == null) {
+                if (mCameraView != null && fragmentManager.findFragmentByTag(FRAGMENT_PERMISSION)
+                        == null) {
                     final Set<AspectRatio> ratios = mCameraView.getSupportedAspectRatios();
                     final AspectRatio currentRatio = mCameraView.getAspectRatio();
                     AspectRatioFragment.newInstance(ratios, currentRatio).show(fragmentManager,
@@ -204,7 +227,8 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             case R.id.switch_camera:
                 if (mCameraView != null) {
                     int facing = mCameraView.getFacing();
-                    mCameraView.setFacing(facing == CameraView.FACING_FRONT ? CameraView.FACING_BACK : CameraView.FACING_FRONT);
+                    mCameraView.setFacing(facing == CameraView.FACING_FRONT ? CameraView.FACING_BACK
+                            : CameraView.FACING_FRONT);
                 }
                 return true;
         }
@@ -248,19 +272,22 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         @Override
         public void onPictureTaken(CameraView cameraView, final byte[] data) {
             Log.d(TAG, "onPictureTaken " + data.length);
-            Toast.makeText(cameraView.getContext(), R.string.picture_taken, Toast.LENGTH_SHORT).show();
+            Toast.makeText(cameraView.getContext(), R.string.picture_taken,
+                    Toast.LENGTH_SHORT).show();
             getBackgroundHandler().post(new Runnable() {
                 @Override
                 public void run() {
                     long time = System.currentTimeMillis();
-                    File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), String.format("picture_%s.jpg", String.valueOf(time)));
+                    File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES),
+                            String.format("picture_%s.jpg", String.valueOf(time)));
                     OutputStream os = null;
                     try {
                         os = new FileOutputStream(file);
                         os.write(data);
                         os.close();
 
-                        PictureDialogFragment.newInstance(file.getAbsolutePath()).show(getSupportFragmentManager(), FRAGMENT_PICTURE);
+                        PictureDialogFragment.newInstance(file.getAbsolutePath()).show(
+                                getSupportFragmentManager(), FRAGMENT_PICTURE);
                     } catch (IOException e) {
                         Log.w(TAG, "Cannot write to " + file, e);
                     } finally {

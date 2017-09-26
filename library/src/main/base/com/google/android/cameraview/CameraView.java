@@ -80,7 +80,7 @@ public class CameraView extends FrameLayout {
     @SuppressWarnings("WrongConstant")
     public CameraView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        if (isInEditMode()){
+        if (isInEditMode()) {
             mCallbackBridge = null;
             mDisplayOrientationDetector = null;
             return;
@@ -92,7 +92,8 @@ public class CameraView extends FrameLayout {
         mCameraViewImpl = createCameraViewImpl(context, mPreviewImpl, mCallbackBridge);
 
         // Attributes R.style.Widget_CameraView中是参数默认值
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr, R.style.Widget_CameraView);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.CameraView, defStyleAttr,
+                R.style.Widget_CameraView);
         setFacing(a.getInt(R.styleable.CameraView_facing, FACING_BACK));//默认后置摄像头
         mAdjustViewBounds = a.getBoolean(R.styleable.CameraView_android_adjustViewBounds, false);
         String aspectRatio = a.getString(R.styleable.CameraView_aspectRatio);
@@ -136,27 +137,36 @@ public class CameraView extends FrameLayout {
     //@NonNull
     private PreviewImpl createPreviewImpl(Context context) {
         if (Build.VERSION.SDK_INT < 14) {
-            CameraLog.i(TAG, "createPreviewImpl, sdk version = %d, create SurfaceViewPreview", Build.VERSION.SDK_INT);
+            CameraLog.i(TAG, "createPreviewImpl, sdk version = %d, create SurfaceViewPreview",
+                    Build.VERSION.SDK_INT);
             return new SurfaceViewPreview(context, this);
         } else {
-            CameraLog.i(TAG, "createPreviewImpl, sdk version = %d, create TextureViewPreview", Build.VERSION.SDK_INT);
+            CameraLog.i(TAG, "createPreviewImpl, sdk version = %d, create TextureViewPreview",
+                    Build.VERSION.SDK_INT);
             return new TextureViewPreview(context, this);
         }
     }
 
-    private CameraViewImpl createCameraViewImpl(Context context, PreviewImpl preview, CallbackBridge callbackBridge) {
+    private CameraViewImpl createCameraViewImpl(Context context, PreviewImpl preview,
+            CallbackBridge callbackBridge) {
         if (CameraHelper.getInstance(getContext()).shouldUseCamera1()) {//只使用Camera1的方案
-            CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera1 (for previous experience)", Build.VERSION.SDK_INT);
+            CameraLog.i(TAG,
+                    "createCameraViewImpl, sdk version = %d, create Camera1 (for previous "
+                            + "experience)",
+                    Build.VERSION.SDK_INT);
             return new Camera1(callbackBridge, preview);
         } else {//根据版本可能使用Camera2的方案
             if (Build.VERSION.SDK_INT < 21) {
-                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera1", Build.VERSION.SDK_INT);
+                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera1",
+                        Build.VERSION.SDK_INT);
                 return new Camera1(callbackBridge, preview);
             } else if (Build.VERSION.SDK_INT < 23) {
-                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2", Build.VERSION.SDK_INT);
+                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2",
+                        Build.VERSION.SDK_INT);
                 return new Camera2(callbackBridge, preview, context);
             } else {
-                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2Api23", Build.VERSION.SDK_INT);
+                CameraLog.i(TAG, "createCameraViewImpl, sdk version = %d, create Camera2Api23",
+                        Build.VERSION.SDK_INT);
                 return new Camera2Api23(callbackBridge, preview, context);
             }
         }
@@ -183,7 +193,7 @@ public class CameraView extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        if (isInEditMode()){
+        if (isInEditMode()) {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             return;
         }
@@ -204,7 +214,8 @@ public class CameraView extends FrameLayout {
                 if (heightMode == MeasureSpec.AT_MOST) {
                     height = Math.min(height, MeasureSpec.getSize(heightMeasureSpec));
                 }
-                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                super.onMeasure(widthMeasureSpec,
+                        MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
             } else if (widthMode != MeasureSpec.EXACTLY && heightMode == MeasureSpec.EXACTLY) {
                 final AspectRatio ratio = getAspectRatio();
                 assert ratio != null;
@@ -212,7 +223,8 @@ public class CameraView extends FrameLayout {
                 if (widthMode == MeasureSpec.AT_MOST) {
                     width = Math.min(width, MeasureSpec.getSize(widthMeasureSpec));
                 }
-                super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), heightMeasureSpec);
+                super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                        heightMeasureSpec);
             } else {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             }
@@ -228,15 +240,23 @@ public class CameraView extends FrameLayout {
         }
         assert ratio != null;
         if (height < width * ratio.getY() / ratio.getX()) {// Measure the TextureView
-            mCameraViewImpl.getView().measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec(width * ratio.getY() / ratio.getX(), MeasureSpec.EXACTLY));//这里是为了维持这个宽高比，将高度增加点
+            mCameraViewImpl.getView().measure(
+                    MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(width * ratio.getY() / ratio.getX(),
+                            MeasureSpec.EXACTLY));//这里是为了维持这个宽高比，将高度增加点
         } else {
-            mCameraViewImpl.getView().measure(MeasureSpec.makeMeasureSpec(height * ratio.getX() / ratio.getY(), MeasureSpec.EXACTLY),
+            mCameraViewImpl.getView().measure(
+                    MeasureSpec.makeMeasureSpec(height * ratio.getX() / ratio.getY(),
+                            MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));//这里是为了维持这个宽高比，将宽度增加点
         }
-        //mCameraViewImpl.getView().measure将触发对应的TextureViewPreview或者SurfaceViewPreview的onSurfaceTextureAvailable方法被调用，进而触发PreviewImpl的mCallback.onSurfaceChanged()被触发
-        //对于mCallback.onSurfaceChanged的处理，在Camera1中是重新setUpPreview，并调整相机参数adjustCameraParameters；在Camera2中重新startCaptureSession
-        //start方法中有个逻辑是如果Camera2API不行的话会降级到Camera1，这个时候前面的CameraViewImpl按照原始代码逻辑的话就会重建！那么之前设置的callback就相当于白调用了，部分手机例如魅族MX6上可能引起预览模糊的问题
+        //mCameraViewImpl.getView()
+        // .measure将触发对应的TextureViewPreview或者SurfaceViewPreview的onSurfaceTextureAvailable
+        // 方法被调用，进而触发PreviewImpl的mCallback.onSurfaceChanged()被触发
+        //对于mCallback.onSurfaceChanged的处理，在Camera1中是重新setUpPreview，并调整相机参数adjustCameraParameters
+        // ；在Camera2中重新startCaptureSession
+        //start方法中有个逻辑是如果Camera2API不行的话会降级到Camera1，这个时候前面的CameraViewImpl
+        // 按照原始代码逻辑的话就会重建！那么之前设置的callback就相当于白调用了，部分手机例如魅族MX6上可能引起预览模糊的问题
     }
 
     /**
@@ -248,19 +268,26 @@ public class CameraView extends FrameLayout {
         if (isSuccess) {
             CameraLog.i(TAG, "start camera success");
         } else {
-            CameraLog.i(TAG, "start camera fail, try Camera1");//测试机：小米 5/4c，Vivo X7，Meizu MX6/Pro6，Galaxy S4，Huawei H60-L11 走到这里
+            CameraLog.i(TAG,
+                    "start camera fail, try Camera1");//测试机：小米 5/4c，Vivo X7，Meizu MX6/Pro6，Galaxy
+            // S4，Huawei H60-L11 走到这里
             //store the state, and restore this state after fall back o Camera1
             Parcelable state = onSaveInstanceState();
             //Camera2 uses legacy hardware layer; fall back to Camera1
-            //mCameraViewImpl = new Camera1(mCallbackBridge, createPreviewImpl(getContext()));//要保证start方法先于onMeasure方法被调用，这样的话onMeasure方法中调用mCameraViewImpl.getView().measure之后才能正确调用到callback
-            if (mPreviewImpl == null || mPreviewImpl.getView() == null) {//可以避免重复创建，只是替换CameraView，不用替换PreviewImpl的实现，预览组件的大小也维持之前的设置 (aspect ratio没变)
+            //mCameraViewImpl = new Camera1(mCallbackBridge, createPreviewImpl(getContext()));
+            // 要保证start方法先于onMeasure方法被调用，这样的话onMeasure方法中调用mCameraViewImpl.getView()
+            // .measure之后才能正确调用到callback
+            if (mPreviewImpl == null || mPreviewImpl.getView()
+                    == null) {//可以避免重复创建，只是替换CameraView，不用替换PreviewImpl的实现，预览组件的大小也维持之前的设置
+                // (aspect ratio没变)
                 mPreviewImpl = createPreviewImpl(getContext());
             }
             mCameraViewImpl = new Camera1(mCallbackBridge, mPreviewImpl);
             onRestoreInstanceState(state);
             isSuccess = mCameraViewImpl.start();
             if (isSuccess) {
-                CameraLog.i(TAG, "start camera with Camera1 success, set to use Camera1 in the future");
+                CameraLog.i(TAG,
+                        "start camera with Camera1 success, set to use Camera1 in the future");
                 CameraHelper.getInstance(getContext()).setUseCamera1InFuture();
             } else {
                 CameraLog.i(TAG, "start camera with Camera1 fail");
@@ -350,6 +377,15 @@ public class CameraView extends FrameLayout {
         mCameraViewImpl.takePicture();
     }
 
+    public boolean startRecord(String file) {
+        return mCameraViewImpl.startRecord(file);
+    }
+
+    public void stopRecord() {
+        mCameraViewImpl.stopRecord();
+    }
+
+
     /**
      * 监听CameraView的主要事件，事件发生时再dispatch到其他的监听器上 (这个Callback是用于创建CameraViewImpl时所需要传入的Callback)
      */
@@ -433,8 +469,10 @@ public class CameraView extends FrameLayout {
      */
     protected static class CameraViewSavedState extends BaseSavedState {
 
-        @Facing int facing;
-        @Flash int flash;
+        @Facing
+        int facing;
+        @Flash
+        int flash;
         AspectRatio ratio;
         boolean autoFocus;
 
@@ -460,25 +498,29 @@ public class CameraView extends FrameLayout {
             out.writeInt(flash);
         }
 
-        public static final Parcelable.Creator<CameraViewSavedState> CREATOR = ParcelableCompat.newCreator(new ParcelableCompatCreatorCallbacks<CameraViewSavedState>() {
+        public static final Parcelable.Creator<CameraViewSavedState> CREATOR =
+                ParcelableCompat.newCreator(
+                        new ParcelableCompatCreatorCallbacks<CameraViewSavedState>() {
 
-            @Override
-            public CameraViewSavedState createFromParcel(Parcel in, ClassLoader loader) {
-                return new CameraViewSavedState(in, loader);
-            }
+                            @Override
+                            public CameraViewSavedState createFromParcel(Parcel in,
+                                    ClassLoader loader) {
+                                return new CameraViewSavedState(in, loader);
+                            }
 
-            @Override
-            public CameraViewSavedState[] newArray(int size) {
-                return new CameraViewSavedState[size];
-            }
+                            @Override
+                            public CameraViewSavedState[] newArray(int size) {
+                                return new CameraViewSavedState[size];
+                            }
 
-        });
+                        });
 
     }
 
     @Override
     protected Parcelable onSaveInstanceState() {
-        CameraLog.i(TAG, "onSaveInstanceState: facing = %d, autofocus = %s, flash = %d, ratio = %s", getFacing(), getAutoFocus(), getFlash(), getAspectRatio());
+        CameraLog.i(TAG, "onSaveInstanceState: facing = %d, autofocus = %s, flash = %d, ratio = %s",
+                getFacing(), getAutoFocus(), getFlash(), getAspectRatio());
         CameraViewSavedState state = new CameraViewSavedState(super.onSaveInstanceState());
         state.facing = getFacing();
         state.ratio = getAspectRatio();
@@ -499,7 +541,9 @@ public class CameraView extends FrameLayout {
         setAspectRatio(ss.ratio);
         setAutoFocus(ss.autoFocus);
         setFlash(ss.flash);
-        CameraLog.i(TAG, "onRestoreInstanceState: facing = %d, autofocus = %s, flash = %d, ratio = %s", getFacing(), getAutoFocus(), getFlash(), getAspectRatio());
+        CameraLog.i(TAG,
+                "onRestoreInstanceState: facing = %d, autofocus = %s, flash = %d, ratio = %s",
+                getFacing(), getAutoFocus(), getFlash(), getAspectRatio());
     }
 
 }

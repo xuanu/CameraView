@@ -87,6 +87,10 @@ abstract class CameraViewImpl {
 
     abstract void setDisplayOrientation(int displayOrientation);
 
+    abstract boolean startRecord(String file);
+
+    abstract void stopRecord();
+
 
     /**
      * 摄像头相关回调 (camera session callbacks)
