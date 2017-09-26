@@ -13,6 +13,8 @@ CameraView这个项目可以帮助Android开发者快速创建一个可以适配
 
 3.在相机模块的使用过程中提供了完整的日志输出，并且提供了便利的`LoggingDelegate`以便在release和debug模式之间轻松控制日志输出级别
 
+详细的介绍以及Android端相机相关开发的经验请看[这篇文章](http://javayhu.me/blog/2017/09/25/camera-development-experience-on-android/)
+
 ### 应用界面
 
 ![img](cameraview_screenshot.png)
