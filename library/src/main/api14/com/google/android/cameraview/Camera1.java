@@ -127,6 +127,7 @@ class Camera1 extends CameraViewImpl {
 
     @Override
     void stop() {
+        if (isRecrding) stopRecord();
         if (mCamera != null) {
             mCamera.stopPreview();
         }
@@ -175,6 +176,7 @@ class Camera1 extends CameraViewImpl {
 
     @Override
     void setFacing(int facing) {
+        if (isRecrding) return;
         if (mFacing == facing) {
             return;
         }
@@ -271,6 +273,7 @@ class Camera1 extends CameraViewImpl {
 
     @Override
     void takePicture() {
+        if (isRecrding) return;
         if (!isCameraOpened()) {
             //throw new IllegalStateException("Camera is not ready. Call start() before
             // takePicture().");
@@ -342,6 +345,7 @@ class Camera1 extends CameraViewImpl {
 
     @Override
     void setDisplayOrientation(int displayOrientation) {
+        if (isRecrding) return;
         if (mDisplayOrientation == displayOrientation) {
             CameraLog.i(TAG, "Camera1 setDisplayOrientation, displayOrientation = %d, not changed",
                     displayOrientation);
@@ -371,17 +375,22 @@ class Camera1 extends CameraViewImpl {
 
     @Override
     boolean startRecord(String file) {
+        if (isRecrding) return false;
+        if (!isCameraOpened()) start();
         boolean ready = prepareRecord(file);
         if (ready) {
-            mRecorder.start();
-            isRecrding = true;
+            try {
+                mRecorder.start();
+                isRecrding = true;
+            } catch (RuntimeException e) {
+                stopRecord();
+                ready = false;
+            }
         }
         return ready;
     }
 
     private boolean prepareRecord(String file) {
-        if (!isCameraOpened()) start();
-        if (isRecrding) return false;
         if (TextUtils.isEmpty(file)) {
             file = new File(Environment.getExternalStorageDirectory(),
                     "录像" + System.currentTimeMillis() + ".mp4").getAbsolutePath();
@@ -395,26 +404,29 @@ class Camera1 extends CameraViewImpl {
         mRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
         mRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.DEFAULT);
-        mRecorder.setVideoEncodingBitRate(2*1024 * 1024);
 //        mRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_480P));
-
         //选取一个合适的
         List<Camera.Size> sizes = mCameraParameters.getSupportedVideoSizes();
-
         Camera.Size previewSize = null;
-        int defalutHeight = 600;
-        int space = 10000;
-        for (int i = 0; i < sizes.size(); i++) {
-            Camera.Size temp = sizes.get(i);
-            int tempSpace = Math.abs(temp.height - defalutHeight);
-            if (tempSpace < space) {
-                space = tempSpace;
-                previewSize = temp;
+        if (sizes != null && !sizes.isEmpty()) {
+            int defalutHeight = 600;
+            int space = 10000;
+            for (int i = 0; i < sizes.size(); i++) {
+                Camera.Size temp = sizes.get(i);
+                int tempSpace = Math.abs(temp.height - defalutHeight);
+                if (tempSpace < space) {
+                    space = tempSpace;
+                    previewSize = temp;
+                }
             }
+        } else {
+            //如果没有支持的尺寸，应该是不支持录制视频的
+            return false;
         }
         if (previewSize != null) {
             mRecorder.setVideoSize(previewSize.width, previewSize.height);
             mRecorder.setVideoFrameRate(24); // 设置帧率
+            mRecorder.setVideoEncodingBitRate(2 * 1024 * 1024);
         }  // 设置视频大小
 //        mRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
         // Step 4: Set output file

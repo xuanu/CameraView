@@ -2,7 +2,17 @@
 ### 再次更改
 > 想要加入自己的功能，录制视频。
 > Camera1的录制功能参见：[Camera API](https://developer.android.com/guide/topics/media/camera.html#capture-video);
-> 默认的视频大小比较小，setVideoSize();设置，最好选取和当前设备成比例的值。
+> 默认的视频大小比较小，setVideoSize();设置`mCameraParameters.getSupportedVideoSizes()`支持的尺寸，否则会报错
+> `mRecorder.setVideoEncodingBitRate(2*1024 * 1024);`编码比特率，不设置视频会模糊，这个值还可以不模糊。  
+> `Camera1#prepareRecord(file)`;对视频质量进行修改  
+> `Camera2#setUpMediaRecorder(file)`;对视频质量进行修改  
+
+### 人脸识别尝试  
+
+### 录制压缩  
+
+
+
 
 ### 项目说明
 
