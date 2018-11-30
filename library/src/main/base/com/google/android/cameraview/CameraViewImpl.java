@@ -25,6 +25,8 @@ import java.util.Set;
  */
 abstract class CameraViewImpl {
 
+    protected AutoFouceListener mAutoFouceListener;
+
     public static final int FOCUS_AREA_SIZE_DEFAULT = 300;
     public static final int FOCUS_METERING_AREA_WEIGHT_DEFAULT = 1000;
     public static final int DELAY_MILLIS_BEFORE_RESETTING_FOCUS = 3000;

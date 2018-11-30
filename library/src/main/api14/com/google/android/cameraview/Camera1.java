@@ -291,6 +291,7 @@ class Camera1 extends CameraViewImpl {
                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                     @Override
                     public void onAutoFocus(boolean success, Camera camera) {
+                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
                         if (isAutoFocusInProgress.get()) {
                             CameraLog.i(TAG, "takePicture, auto focus => takePictureInternal");
                             isAutoFocusInProgress.set(false);
@@ -805,6 +806,7 @@ class Camera1 extends CameraViewImpl {
                                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                                     @Override
                                     public void onAutoFocus(boolean success, Camera camera) {
+                                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
                                         resetFocus(success, camera);
                                     }
                                 });
@@ -827,6 +829,7 @@ class Camera1 extends CameraViewImpl {
                                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                                     @Override
                                     public void onAutoFocus(boolean success, Camera camera) {
+                                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
                                         resetFocus(success, camera);
                                     }
                                 });
@@ -840,6 +843,7 @@ class Camera1 extends CameraViewImpl {
                                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                                     @Override
                                     public void onAutoFocus(boolean success, Camera camera) {
+                                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
                                         if (mAutofocusCallback != null) {
                                             mAutofocusCallback.onAutoFocus(success, camera);
                                         }

@@ -35,6 +35,7 @@ import android.media.CamcorderProfile;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.text.TextUtils;
@@ -798,8 +799,15 @@ class Camera2 extends CameraViewImpl {
                                 meteringRectangleArr);
                         mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_REGIONS,
                                 meteringRectangleArr);
-                        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                                CaptureRequest.CONTROL_AF_MODE_AUTO);
+//                        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+//                                CaptureRequest.CONTROL_AF_MODE_AUTO);
+                        if (isAutoFocusSupported()) {
+                            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                                    CaptureRequest.CONTROL_AF_MODE_AUTO);
+                        } else {
+                            mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
+                                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                        }
                         mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                                 CameraMetadata.CONTROL_AF_TRIGGER_START);
                         mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER,
@@ -1029,12 +1037,78 @@ class Camera2 extends CameraViewImpl {
         }
 
         @Override
+        protected AutoFouceListener impFoceuListener() {
+            return mAutoFouceListener;
+        }
+
+        @Override
         public void onReady() {
             CameraLog.i(TAG, "mCaptureCallback, onReady => captureStillPicture");
             captureStillPicture();
         }
 
     };
+
+    private boolean isAutoFocusSupported() {
+        return isHardwareLevelSupported(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY)
+                || getMinimumFocusDistance() > 0;
+    }
+
+    private float getMinimumFocusDistance() {
+        if (mCameraId == null) {
+            return 0;
+        }
+
+        Float minimumLens = null;
+        try {
+            CameraCharacteristics c = mCameraManager.getCameraCharacteristics(mCameraId);
+            minimumLens = c.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);
+        } catch (Exception e) {
+        }
+        if (minimumLens != null) {
+            return minimumLens;
+        }
+        return 0;
+    }
+
+    // Returns true if the device supports the required hardware level, or better.
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private boolean isHardwareLevelSupported(int requiredLevel) {
+        boolean res = false;
+        if (mCameraId == null) {
+            return res;
+        }
+        try {
+            CameraCharacteristics cameraCharacteristics = mCameraManager.getCameraCharacteristics(
+                    mCameraId);
+
+            int deviceLevel = cameraCharacteristics.get(
+                    CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+            switch (deviceLevel) {
+                case CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3:
+                    break;
+                case CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL:
+                    break;
+                case CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY:
+                    break;
+                case CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED:
+                    break;
+                default:
+                    break;
+            }
+
+
+            if (deviceLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY) {
+                res = requiredLevel == deviceLevel;
+            } else {
+                // deviceLevel is not LEGACY, can use numerical sort
+                res = requiredLevel <= deviceLevel;
+            }
+
+        } catch (Exception e) {
+        }
+        return res;
+    }
 
     /**
      * CameraCaptureSession.CaptureCallback (用于拍照)
@@ -1074,8 +1148,46 @@ class Camera2 extends CameraViewImpl {
             process(result);
         }
 
+        private int mLastAfState = -1;
+
+        protected abstract AutoFouceListener impFoceuListener();
+
         private void process(@NonNull CaptureResult result) {
             switch (mState) {
+                case STATE_PREVIEW: {
+
+                    //https://stackoverflow
+                    // .com/questions/33922670/camera2-api-autofocus-with-samsung-s5 参考这个解决对焦问题
+                    Integer afState = result.get(CaptureResult.CONTROL_AF_STATE);
+                    if (afState != null && !afState.equals(mLastAfState)) {
+                        switch (afState) {
+                            case CaptureResult.CONTROL_AF_STATE_INACTIVE:
+                                break;
+                            case CaptureResult.CONTROL_AF_STATE_ACTIVE_SCAN:
+                                break;
+                            case CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED:
+                                if (impFoceuListener() != null) {
+                                    impFoceuListener().onAutoFocus(
+                                            true);
+                                }
+                                break;
+                            case CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED:
+                                break;
+                            case CaptureResult.CONTROL_AF_STATE_PASSIVE_UNFOCUSED:
+                                //mUiHandler.postDelayed(mLockAutoFocusRunnable,
+                                // LOCK_FOCUS_DELAY_ON_UNFOCUSED);
+                                break;
+                            case CaptureResult.CONTROL_AF_STATE_PASSIVE_SCAN:
+                                break;
+                            case CaptureResult.CONTROL_AF_STATE_PASSIVE_FOCUSED:
+                                //mUiHandler.postDelayed(mLockAutoFocusRunnable,
+                                // LOCK_FOCUS_DELAY_ON_FOCUSED);
+                                break;
+                        }
+                        mLastAfState = afState;
+                    }
+                    break;
+                }
                 case STATE_LOCKING: {
                     Integer af = result.get(CaptureResult.CONTROL_AF_STATE);
                     if (af == null) {

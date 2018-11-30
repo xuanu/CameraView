@@ -69,6 +69,11 @@ public class CameraView extends FrameLayout {
     private final CallbackBridge mCallbackBridge;
     private final DisplayOrientationDetector mDisplayOrientationDetector;
 
+    public CameraView setAutoFouceListener(AutoFouceListener autoFouceListener) {
+        if (mCameraViewImpl != null) mCameraViewImpl.mAutoFouceListener = autoFouceListener;
+        return this;
+    }
+
     public CameraView(Context context) {
         this(context, null);
     }
@@ -96,7 +101,7 @@ public class CameraView extends FrameLayout {
                 R.style.Widget_CameraView);
         setFacing(a.getInt(R.styleable.CameraView_facing, FACING_BACK));//默认后置摄像头
         mAdjustViewBounds = a.getBoolean(R.styleable.CameraView_android_adjustViewBounds, false);
-        String aspectRatio = a.getString(R.styleable.CameraView_aspectRatio);
+        String aspectRatio = a.getString(R.styleable.CameraView_camera_aspectRatio);
         if (aspectRatio != null) {
             setAspectRatio(AspectRatio.parse(aspectRatio));
         } else {
