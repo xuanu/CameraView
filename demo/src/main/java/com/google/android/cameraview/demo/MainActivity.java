@@ -40,6 +40,7 @@ import android.widget.CompoundButton;
 import android.widget.Toast;
 
 import com.google.android.cameraview.AspectRatio;
+import com.google.android.cameraview.AutoFouceListener;
 import com.google.android.cameraview.CameraView;
 
 import java.io.File;
@@ -108,6 +109,12 @@ public class MainActivity extends AppCompatActivity implements
         if (mCameraView != null) {
             mCameraView.addCallback(mCallback);
         }
+        mCameraView.setAutoFouceListener(new AutoFouceListener() {
+            @Override
+            public void onAutoFocus(boolean success) {
+                Log.e("zeffect", "auto focus:" + success);
+            }
+        });
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.take_picture);
         if (fab != null) {
             fab.setOnClickListener(mOnClickListener);

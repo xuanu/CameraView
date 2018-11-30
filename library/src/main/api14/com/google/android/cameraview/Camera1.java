@@ -87,7 +87,6 @@ class Camera1 extends CameraViewImpl {
     private final AtomicBoolean isAutoFocusInProgress = new AtomicBoolean(false);
 
     private Handler mHandler = new Handler();
-    private Camera.AutoFocusCallback mAutofocusCallback;//这个貌似并没有起到作用，后期考虑删除
 
     private MediaRecorder mRecorder;
     /** 是否正在录制 **/
@@ -291,7 +290,7 @@ class Camera1 extends CameraViewImpl {
                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                     @Override
                     public void onAutoFocus(boolean success, Camera camera) {
-                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
+                        if (mAutoFouceListener != null) mAutoFouceListener.onAutoFocus(success);
                         if (isAutoFocusInProgress.get()) {
                             CameraLog.i(TAG, "takePicture, auto focus => takePictureInternal");
                             isAutoFocusInProgress.set(false);
@@ -550,6 +549,22 @@ class Camera1 extends CameraViewImpl {
         setAutoFocusInternal(mAutoFocus);
         setFlashInternal(mFlash);
         mCamera.setParameters(mCameraParameters);
+        mCamera.cancelAutoFocus();
+//        mCamera.autoFocus(new Camera.AutoFocusCallback() {
+//            @Override
+//            public void onAutoFocus(boolean success, Camera camera) {
+//                Log.e(TAG, "init auto focus!");
+//                if (mAutoFouceListener != null) mAutoFouceListener.onAutoFocus(success);
+//            }
+//        });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            mCamera.setAutoFocusMoveCallback(new Camera.AutoFocusMoveCallback() {
+                @Override
+                public void onAutoFocusMoving(boolean start, Camera camera) {//移动中对焦
+                    if (mAutoFouceListener != null) mAutoFouceListener.onAutoFocus(!start);
+                }
+            });
+        }
 
         CameraLog.i(TAG,
                 "adjustCameraParameters, PreviewSize = %s, PictureSize = %s, AspectRatio = %s, "
@@ -803,10 +818,13 @@ class Camera1 extends CameraViewImpl {
                             mCamera.setParameters(parameters);
 
                             try {
+                                mCamera.cancelAutoFocus();
                                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                                     @Override
                                     public void onAutoFocus(boolean success, Camera camera) {
-                                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
+                                        if (mAutoFouceListener != null) {
+                                            mAutoFouceListener.onAutoFocus(success);
+                                        }
                                         resetFocus(success, camera);
                                     }
                                 });
@@ -826,10 +844,13 @@ class Camera1 extends CameraViewImpl {
                             mCamera.setParameters(parameters);
 
                             try {
+                                mCamera.cancelAutoFocus();
                                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                                     @Override
                                     public void onAutoFocus(boolean success, Camera camera) {
-                                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
+                                        if (mAutoFouceListener != null) {
+                                            mAutoFouceListener.onAutoFocus(success);
+                                        }
                                         resetFocus(success, camera);
                                     }
                                 });
@@ -840,12 +861,12 @@ class Camera1 extends CameraViewImpl {
                             }
                         } else {
                             try {
+                                mCamera.cancelAutoFocus();
                                 mCamera.autoFocus(new Camera.AutoFocusCallback() {
                                     @Override
                                     public void onAutoFocus(boolean success, Camera camera) {
-                                        if (mAutoFouceListener!=null) mAutoFouceListener.onAutoFocus(success);
-                                        if (mAutofocusCallback != null) {
-                                            mAutofocusCallback.onAutoFocus(success, camera);
+                                        if (mAutoFouceListener != null) {
+                                            mAutoFouceListener.onAutoFocus(success);
                                         }
                                     }
                                 });
@@ -889,10 +910,6 @@ class Camera1 extends CameraViewImpl {
                         //ignore this exception
                         CameraLog.e(TAG, "resetFocus, camera getParameters or setParameters fail",
                                 error);
-                    }
-
-                    if (mAutofocusCallback != null) {
-                        mAutofocusCallback.onAutoFocus(success, camera);
                     }
                 }
             }
